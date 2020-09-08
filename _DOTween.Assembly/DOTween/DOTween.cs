@@ -34,7 +34,7 @@ namespace DG.Tweening
     public class DOTween
     {
         /// <summary>DOTween's version</summary>
-        public static readonly string Version = "1.2.315"; // Last version before modules: 1.1.755
+        public static readonly string Version = "1.2.475"; // Last version before modules: 1.1.755
 
         ///////////////////////////////////////////////
         // Options ////////////////////////////////////
@@ -127,11 +127,25 @@ namespace DG.Tweening
         /// <summary>Used internally. Assigned/removed by DOTweenComponent.Create/DestroyInstance</summary>
         public static DOTweenComponent instance;
 
+        // Set by DOTweenComponent when the application is quitting.
+        // Resets isQuitting if the frame count when it was set to TRUE changed (in order to work with no-domain-reload quick enter playmode)
+        internal static bool isQuitting {
+            get {
+                if (!_foo_isQuitting) return false;
+                if (Time.frameCount > 0 && _isQuittingFrame != Time.frameCount) {
+                    _foo_isQuitting = false;
+                    return false;
+                }
+                return true;
+            }
+            set { _foo_isQuitting = value; if (value)_isQuittingFrame = Time.frameCount; }
+        }
+        static bool _foo_isQuitting;
         internal static int maxActiveTweenersReached, maxActiveSequencesReached; // Controlled by DOTweenInspector if showUnityEditorReport is active
         internal static SafeModeReport safeModeReport; // Used to store how many safe mode errors are captured in the editor
         internal static readonly List<TweenCallback> GizmosDelegates = new List<TweenCallback>(); // Can be used by other classes to call internal gizmo draw methods
         internal static bool initialized; // Can be set to false by DOTweenComponent OnDestroy
-        internal static bool isQuitting; // Set by DOTweenComponent when the application is quitting
+        static int _isQuittingFrame = -1; // Frame when isQuitting was set. Sets isQuitting to false after this frame (so no-domain-reload playmode can work)
 
         #region Public Methods
 
@@ -171,6 +185,7 @@ namespace DG.Tweening
         // Auto-init
         static void AutoInit()
         {
+            if (!Application.isPlaying || isQuitting) return;
             DOTweenSettings settings = Resources.Load(DOTweenSettings.AssetName) as DOTweenSettings;
             Init(settings, null, null, null);
         }
@@ -240,7 +255,12 @@ namespace DG.Tweening
         /// (so that next time you use it it will need to be re-initialized)</param>
         public static void Clear(bool destroy = false)
         {
-            TweenManager.PurgeAll();
+            Clear(destroy, false);
+        }
+
+        internal static void Clear(bool destroy, bool isApplicationQuitting)
+        {
+            TweenManager.PurgeAll(isApplicationQuitting);
             PluginsManager.PurgeAll();
             if (!destroy) return;
 
@@ -251,7 +271,10 @@ namespace DG.Tweening
             drawGizmos = true;
             timeScale = 1;
             useSmoothDeltaTime = false;
+            maxSmoothUnscaledTime = 0.15f;
+            rewindCallbackMode = RewindCallbackMode.FireIfPositionChanged;
             logBehaviour = LogBehaviour.ErrorsOnly;
+            onWillLog = null;
             defaultEaseType = Ease.OutQuad;
             defaultEaseOvershootOrAmplitude = 1.70158f;
             defaultEasePeriod = 0;
@@ -262,6 +285,7 @@ namespace DG.Tweening
             defaultAutoKill = true;
             defaultRecyclable = false;
             maxActiveTweenersReached = maxActiveSequencesReached = 0;
+            GizmosDelegates.Clear();
 
             DOTweenComponent.DestroyInstance();
         }
@@ -709,6 +733,11 @@ namespace DG.Tweening
             if (targetOrId == null) return 0;
             return TweenManager.FilteredOperation(OperationType.Complete, FilterType.TargetOrId, targetOrId, true, 0);
         }
+        internal static int CompleteAndReturnKilledTot(object target, object id)
+        {
+            if (target == null || id == null) return 0;
+            return TweenManager.FilteredOperation(OperationType.Complete, FilterType.TargetAndId, id, true, 0, target);
+        }
         internal static int CompleteAndReturnKilledTotExceptFor(params object[] excludeTargetsOrIds)
         {
             // excludeTargetsOrIds is never NULL (checked by DOTween.KillAll)
@@ -769,6 +798,14 @@ namespace DG.Tweening
             if (targetOrId == null) return 0;
             int tot = complete ? CompleteAndReturnKilledTot(targetOrId) : 0;
             return tot + TweenManager.FilteredOperation(OperationType.Despawn, FilterType.TargetOrId, targetOrId, false, 0);
+        }
+        /// <summary>Kills all tweens with the given target and the given ID, and returns the number of actual tweens killed</summary>
+        /// <param name="complete">If TRUE completes the tweens before killing them</param>
+        public static int Kill(object target, object id, bool complete = false)
+        {
+            if (target == null || id == null) return 0;
+            int tot = complete ? CompleteAndReturnKilledTot(target, id) : 0;
+            return tot + TweenManager.FilteredOperation(OperationType.Despawn, FilterType.TargetAndId, id, false, 0, target);
         }
 
         /// <summary>Pauses all tweens and returns the number of actual tweens paused</summary>

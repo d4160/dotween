@@ -21,11 +21,16 @@ ExternalPluginsTestsAndExamples*
 *.Unity*/Assets/TK2D*
 *.Unity*/Assets/-tk2d*
 *.Unity*/Assets/Console*Pro*
-*.Unity*/Assets/Text*Mesh*Pro*
 *.Unity*/Assets/CodeStage
 *.Unity*/Assets/_DOTween Pro Examples
 *.Unity*/Assets/_Tests PRO*
 .vs
+*DOTweenPro
+*DOTweenPro.*
+*DemiLib
+*DemiLib.*
+*DOTweenTimeline
+*DOTweenTimeline.*
 *HOPoolOperator*
 *HOTools*
 extra
@@ -39,8 +44,11 @@ zzTestBuilds
 UnityTests.Unity2019
 UnityTests.Unity5BETA
 UnityTests.Unity5 - LastVersionBeforeModules
+UnityTests.Unity2020
 ModulesTest.Unity2018
 packageManagerTests
 biz
 screenshots
-zzTemp
+zzTemp*
+
+_DOTween.Timeline

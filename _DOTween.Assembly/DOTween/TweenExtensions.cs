@@ -104,6 +104,7 @@ namespace DG.Tweening
             }
 
             if (to < 0) to = 0;
+            if (!t.startupDone) TweenManager.ForceInit(t); // Initialize the tween if it's not initialized already (required)
             TweenManager.Goto(t, to, andPlay);
         }
 
@@ -129,6 +130,26 @@ namespace DG.Tweening
                 // Just mark it for killing, so the update loop will take care of it
                 t.active = false;
             } else TweenManager.Despawn(t);
+        }
+
+        /// <summary>
+        /// Forces this tween to update manually, regardless of the <see cref="UpdateType"/> set via SetUpdate.<para/>
+        /// Note that if you only want to update this tween instance manually you'll have to set it to <see cref="UpdateType.Manual"/>  anyway,
+        /// so that it's not updated automatically.
+        /// </summary>
+        /// <param name="deltaTime">Manual deltaTime</param>
+        /// <param name="unscaledDeltaTime">Unscaled delta time (used with tweens set as timeScaleIndependent)</param>
+        public static void ManualUpdate(this Tween t, float deltaTime, float unscaledDeltaTime)
+        {
+            if (t == null) {
+                if (Debugger.logPriority > 1) Debugger.LogNullTween(t); return;
+            } else if (!t.active) {
+                if (Debugger.logPriority > 1) Debugger.LogInvalidTween(t); return;
+            } else if (t.isSequenced) {
+                if (Debugger.logPriority > 1) Debugger.LogNestedTween(t); return;
+            }
+
+            TweenManager.Update(t, deltaTime, unscaledDeltaTime, true);
         }
 
         /// <summary>Pauses the tween</summary>
@@ -285,7 +306,7 @@ namespace DG.Tweening
             for (int i = 0; i < waypointIndex + 1; i++) wpLength += pathTween.changeValue.wpLengths[i];
             float wpPerc = wpLength / pathTween.changeValue.length;
             // Convert to time taking eventual inverse direction into account
-            bool useInversePosition = t.loopType == LoopType.Yoyo
+            bool useInversePosition = t.hasLoops && t.loopType == LoopType.Yoyo
                 && (t.position < t.duration ? t.completedLoops % 2 != 0 : t.completedLoops % 2 == 0);
             if (useInversePosition) wpPerc = 1 - wpPerc;
             float to = (t.isComplete ? t.completedLoops - 1 : t.completedLoops) * t.duration + wpPerc * t.duration;
@@ -417,6 +438,17 @@ namespace DG.Tweening
             return t.delay;
         }
 
+        /// <summary>Returns the eventual elapsed delay set for this tween</summary>
+        public static float ElapsedDelay(this Tween t)
+        {
+            if (!t.active) {
+                if (Debugger.logPriority > 0) Debugger.LogInvalidTween(t);
+                return 0;
+            }
+
+            return t.elapsedDelay;
+        }
+
         /// <summary>Returns the duration of this tween (delays excluded).
         /// <para>NOTE: when using settings like SpeedBased, the duration will be recalculated when the tween starts</para></summary>
         /// <param name="includeLoops">If TRUE returns the full duration loops included,
@@ -477,18 +509,19 @@ namespace DG.Tweening
             }
 
             float perc = t.position / t.duration;
-            bool isInverse = t.completedLoops > 0 && t.loopType == LoopType.Yoyo && (!t.isComplete && t.completedLoops % 2 != 0 || t.isComplete && t.completedLoops % 2 == 0);
+            bool isInverse = t.completedLoops > 0 && t.hasLoops && t.loopType == LoopType.Yoyo
+                             && (!t.isComplete && t.completedLoops % 2 != 0 || t.isComplete && t.completedLoops % 2 == 0);
             return isInverse ? 1 - perc : perc;
         }
 
-        /// <summary>Returns FALSE if this tween has been killed.
+        /// <summary>Returns FALSE if this tween has been killed or is NULL, TRUE otherwise.
         /// <para>BEWARE: if this tween is recyclable it might have been spawned again for another use and thus return TRUE anyway.</para>
         /// When working with recyclable tweens you should take care to know when a tween has been killed and manually set your references to NULL.
         /// If you want to be sure your references are set to NULL when a tween is killed you can use the <code>OnKill</code> callback like this:
         /// <para><code>.OnKill(()=> myTweenReference = null)</code></para></summary>
         public static bool IsActive(this Tween t)
         {
-            return t.active;
+            return t != null && t.active;
         }
 
         /// <summary>Returns TRUE if this tween was reversed and is set to go backwards</summary>

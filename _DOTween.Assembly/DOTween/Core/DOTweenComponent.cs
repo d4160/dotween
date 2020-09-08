@@ -25,7 +25,9 @@ namespace DG.Tweening.Core
         float _unscaledTime;
         float _unscaledDeltaTime;
 
+        bool _paused; // Used to mark when app is paused and to avoid resume being called when application starts playing
         float _pausedTime; // Marks the time when Unity was paused
+        bool _isQuitting;
 
         bool _duplicateToDestroy;
 
@@ -159,25 +161,26 @@ namespace DG.Tweening.Core
 //            DOTween.instance = null;
 
             if (DOTween.instance == this) DOTween.instance = null;
-            DOTween.Clear(true);
+            DOTween.Clear(true, _isQuitting);
         }
 
         // Detract/reapply pause time from/to unscaled time
         public void OnApplicationPause(bool pauseStatus)
         {
             if (pauseStatus) {
+                _paused = true;
                 _pausedTime = Time.realtimeSinceStartup;
-            } else {
+            } else if (_paused) {
+                _paused = false;
                 _unscaledTime += Time.realtimeSinceStartup - _pausedTime;
             }
         }
 
-        // Commented this out because it interferes with Unity 2019.3 "no domain reload" experimental playmode
-        // (now I clear DOTween completely when the DOTween component is destroyed which allows this to be commented out)
-//        void OnApplicationQuit()
-//        {
-//            DOTween.isQuitting = true;
-//        }
+        void OnApplicationQuit()
+        {
+            _isQuitting = true;
+            DOTween.isQuitting = true;
+        }
 
         #endregion
 
